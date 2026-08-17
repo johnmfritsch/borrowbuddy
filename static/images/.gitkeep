@@ -1,0 +1,2 @@
+Item and return photos uploaded through the app are written here at runtime.
+They are user data and are not committed — see .gitignore.

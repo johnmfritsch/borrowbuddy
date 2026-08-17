@@ -1,0 +1,1332 @@
+{% extends "base.html" %}
+{% from "macros/duplicate_modals.html" import duplicate_modal, fuzzy_modal %}
+
+
+{% block title %}Loan Something{% endblock %}
+
+{% block page_title %}<h2 class="fw-bold" style="font-size: 1.6rem; color: #1a3a5c; margin: 0; flex: 1; text-align: center;">Loan Something</h2>{% endblock %}
+{% block content %}
+<style>
+.item-card {
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.item-card img {
+    height: 120px;
+    object-fit: cover;
+    background-color: #f8f9fa;
+}
+
+.item-card .card-title {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#selected_item_photo {
+    border-radius: 8px;
+}
+
+.contact-card {
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.contact-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.contact-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.contact-card .contact-avatar {
+    width: 80px;
+    height: 80px;
+    font-size: 1.5rem;
+    margin: 0 auto 10px;
+}
+
+.contact-card .card-title {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#selected_contact_avatar {
+    width: 100px;
+    height: 100px;
+    font-size: 2rem;
+}
+</style>
+
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+
+        <h5 class="mb-3">What are you loaning?</h5>
+        <!-- Mode toggle: Existing Item vs New Item (Existing is default) -->
+        <div class="btn-group w-100 mb-3" role="group">
+            <input type="radio" class="btn-check" name="item_mode" id="mode_existing" value="existing" checked>
+            <label class="btn btn-outline-primary" for="mode_existing">Existing Item</label>
+
+            <input type="radio" class="btn-check" name="item_mode" id="mode_new" value="new">
+            <label class="btn btn-outline-primary" for="mode_new">New Item</label>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            <!-- Existing Item Selection (hidden by default) -->
+            <div id="existing_item_section" class="mb-3" style="display: block;">
+                <label class="form-label" id="item_select_label">Select Item (Required) *</label>
+
+                <!-- Search Input Container (hidden when item selected) -->
+                <div id="item_search_container" class="mb-3">
+                    <input type="text" class="form-control" id="item_search_filter"
+                           placeholder="Search items by name...">
+                </div>
+
+                <!-- Items Grid Container (hidden when item selected) -->
+                <div id="items_grid_container">
+                    <div id="items_grid" class="row g-2">
+                        <!-- Populated dynamically via JavaScript -->
+                    </div>
+                </div>
+
+                                <!-- Selected Item Summary (shown when item selected) -->
+                <div id="selected_item_summary" style="display: none;">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <img id="selected_item_photo" src="" alt=""
+                                     style="width: 80px; height: 80px; object-fit: cover; margin-right: 15px;">
+                                <div>
+                                    <h5 id="selected_item_name" class="mb-1"></h5>
+                                    <p id="selected_item_details" class="text-muted mb-0"></p>
+                                </div>
+                            </div>
+                            <!-- Links inside the card -->
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-link p-0"
+                                        onclick="clearItemSelection()">
+                                    Choose Different Item
+                                </button>
+                                <span class="mx-2">|</span>
+                                <button type="button" id="photo_button_label" class="btn btn-sm btn-link p-0" style="cursor: pointer;"
+                                        onclick="openPhotoModal()">
+                                    📷 <span id="photo_button_text">Add Photo</span>
+                                </button>
+                                
+                                <!-- Quantity selector -->
+                                <span class="mx-2">|</span>
+                                <label for="quantity_existing" class="btn btn-sm btn-link p-0" style="cursor: pointer;">
+                                    Quantity:
+                                </label>
+                                <input type="number" id="quantity_existing" name="quantity"
+                                       class="form-control d-inline-block"
+                                       style="width: 70px; display: inline-block !important;"
+                                       min="1" max="10" value="1" step="1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <input type="hidden" id="item_id" name="item_id">
+            </div>
+
+            <!-- New Item Section (visible when creating new item) -->
+            <div id="new_item_section" class="mb-3" style="display: none">
+                <div class="mb-3">
+                    <label for="item_name" class="form-label">Item Name *</label>
+                    <input type="text" class="form-control" id="item_name" name="item_name" onblur="checkDuplicateItem()">
+                </div>
+
+                <div class="mb-3">
+                    <label for="item_description" class="form-label">Description</label>
+                    <textarea class="form-control" id="item_description" name="item_description" rows="3" placeholder="optional"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <span class="form-label d-block">Add Photo(s) <span class="text-muted fw-normal">(Optional)</span></span>
+                    <div class="d-flex gap-2 mt-1">
+                        <label for="newitem_photo_camera" class="btn btn-secondary btn-sm">📷 Take Photo</label>
+                        <input type="file" class="d-none" id="newitem_photo_camera" name="photo"
+                               accept="image/*" capture="environment" onchange="handleNewItemPhotoAdd(this)">
+                        <label for="newitem_photo_gallery" class="btn btn-outline-secondary btn-sm">🖼 <span class="gallery-btn-label">Choose from Gallery</span></label>
+                        <input type="file" class="d-none" id="newitem_photo_gallery" name="photo"
+                               accept="image/*" multiple onchange="handleNewItemPhotoAdd(this)">
+                    </div>
+                </div>
+                
+                <!-- Multi-Photo Preview -->
+                <div id="newitem_photo_preview_area" class="mt-2" style="display: none;">
+                    <div id="newitem_photo_thumbnails" class="d-flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="quantity_new" class="form-label">Quantity</label>
+                    <input type="number" id="quantity_new" name="quantity"
+                           class="form-control" style="width: 80px;"
+                           min="1" max="10" value="1" step="1">
+                </div>
+            </div>
+
+            <h5 class="mb-3 mt-4">Who are you loaning it to?</h5>
+            <!-- Contact Mode Toggle -->
+            <div class="btn-group w-100 mb-3" role="group">
+                <input type="radio" class="btn-check" name="contact_mode" id="contact_mode_existing" value="existing" checked>
+                <label class="btn btn-outline-primary" for="contact_mode_existing">Existing Contact</label>
+
+                <input type="radio" class="btn-check" name="contact_mode" id="contact_mode_new" value="new">
+                <label class="btn btn-outline-primary" for="contact_mode_new">New Contact</label>
+            </div>
+
+            <!-- NEW CONTACT SECTION -->
+            <div id="new_contact_section" class="mb-3" style="display: none;">
+                <label class="form-label">Contact Information *</label>
+
+                <!-- Import from Contacts button (mobile only) -->
+                <div id="import_contact_container" style="display: none;">
+                    <button type="button" class="btn btn-outline-primary w-100 mb-3" onclick="importFromContacts()">
+                        📱 Import from Phone Contacts
+                    </button>
+                    <div class="text-center mb-2">
+                        <small class="text-muted">or enter manually</small>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <input type="text" class="form-control" id="contact_name" name="contact_name" onblur="checkDuplicateContact()"
+                           placeholder="Name *" onblur="checkDuplicateContact()">
+                </div>
+                <div class="mb-2">
+                    <input type="email" class="form-control" id="contact_email" name="contact_email"
+                           placeholder="Email (optional)">
+                </div>
+                <div class="mb-2">
+                    <input type="tel" class="form-control" id="contact_phone" name="contact_phone"
+                           placeholder="Phone (optional)">
+                </div>
+                <small class="form-text text-muted">Email and phone are optional but recommended for future notifications</small>
+            </div>
+
+            <!-- EXISTING CONTACT SECTION -->
+            <div id="existing_contact_section" class="mb-3" style="display: block;">
+                <label class="form-label" id="contact_select_label">Select Contact already added to app (Required) *</label>
+
+                <!-- Search Input Container (hidden when contact selected) -->
+                <div id="contact_search_container" class="mb-3">
+                    <input type="text" class="form-control" id="contact_search_filter"
+                           placeholder="Search contacts by name...">
+                </div>
+
+                <!-- Contacts Grid Container (hidden when contact selected) -->
+                <div id="contacts_grid_container">
+                    <div id="contacts_grid" class="row g-2">
+                        <!-- Populated dynamically via JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Selected Contact Summary (shown when contact selected) -->
+                <div id="selected_contact_summary" style="display: none;">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="contact-avatar me-3" id="selected_contact_avatar">
+                                    <!-- Initials -->
+                                </div>
+                                <div>
+                                    <h5 id="selected_contact_name" class="mb-1"></h5>
+                                    <p id="selected_contact_details" class="text-muted mb-0"></p>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-link mt-2"
+                                    onclick="clearContactSelection()">
+                                Choose Different Contact
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <input type="hidden" id="contact_id" name="contact_id">
+            </div>
+
+            <div class="mb-3">
+                <h5 class="mb-3 mt-4">Return Date <small class="text-muted">(optional)</small></h5>
+                <label for="return_date" class="form-label visually-hidden">Return Date</label>
+                <input type="date" class="form-control" id="return_date" name="return_date">
+            </div>
+
+
+
+            <div class="mb-3">
+                <h5 class="mb-3 mt-4">Notes <small class="text-muted">(optional)</small></h5>
+                <label for="notes" class="form-label visually-hidden">Notes</label>
+                <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">Submit Loan</button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Multiple Value Picker Modal -->
+<div class="modal" id="multiPickerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="multiPickerTitle">Select One</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="multiPickerExplanation" class="text-muted">This contact has multiple entries. We can only store one - tap the one you want to use.</p>
+                <div id="multiPickerList" class="list-group">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Duplicate detection modals (shared for both contacts and items) -->
+{{ duplicate_modal("contact") }}
+{{ fuzzy_modal("contact") }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/duplicate-checker.js') }}?v=1770488952"></script>
+<script>
+    let itemsData = [];
+    let selectedItemId = null;
+    let contactsData = [];
+    let selectedContactId = null;
+    // Initialize duplicate checkers for inline contact/item creation
+    const contactDuplicateChecker = new DuplicateChecker({
+        type: 'contact',
+        checkUrl: '{{ url_for("check_duplicate_contact") }}',
+        mergeUrl: '{{ url_for("merge_contact") }}',
+        reactivateUrl: '{{ url_for("reactivate_contact") }}',
+        redirectUrl: '{{ url_for("loan") }}',
+        urlPrefix: '{{ config.URL_PREFIX }}',
+        getFormData: function() {
+            return {
+                name: document.getElementById('contact_name').value.trim(),
+                email: document.getElementById('contact_email').value.trim(),
+                phone: document.getElementById('contact_phone').value.trim()
+            };
+        }
+    });
+
+    const itemDuplicateChecker = new DuplicateChecker({
+        type: 'item',
+        checkUrl: '{{ url_for("check_duplicate_item") }}',
+        mergeUrl: '{{ url_for("merge_item") }}',
+        reactivateUrl: '{{ url_for("reactivate_item") }}',
+        redirectUrl: '{{ url_for("loan") }}',
+        urlPrefix: '{{ config.URL_PREFIX }}',
+        getFormData: function() {
+            return {
+                name: document.getElementById('item_name').value.trim(),
+                description: (document.getElementById('item_description') || {value: ''}).value.trim(),
+                has_photo: false
+            };
+        }
+    });
+
+    // Load items from API
+    async function loadItems() {
+        try {
+            const response = await fetch('{{ url_for("api_items") }}');
+            itemsData = await response.json();
+            renderItemsGrid(itemsData);
+        } catch (error) {
+            console.error('Error loading items:', error);
+        }
+    }
+
+    // Render items grid
+    function renderItemsGrid(items) {
+        const grid = document.getElementById('items_grid');
+        const label = document.getElementById('item_select_label');
+        grid.innerHTML = '';
+
+        if (items.length === 0) {
+            // Hide label when no items, but show message in grid
+            if (label) label.style.display = 'none';
+            grid.innerHTML = '<div class="col-12"><div class="alert alert-info">No items found. Create a new item instead.</div></div>';
+            return;
+        }
+
+        // Show label when items exist
+        if (label) label.style.display = 'block';
+
+        // Sort items alphabetically by name
+        items.sort((a, b) => a.name.localeCompare(b.name));
+
+        items.forEach(item => {
+            const col = document.createElement('div');
+            col.className = 'col-6 col-md-3 col-lg-2';
+
+            const card = document.createElement('div');
+            card.className = 'card item-card';
+            card.dataset.itemId = item.id;
+            card.dataset.itemName = item.name.toLowerCase();
+            card.onclick = () => selectItem(item);
+
+            // Image
+            const img = document.createElement('img');
+            img.className = 'card-img-top';
+            if (item.photo_uri_thumb || item.photo_uri) {
+                img.src = item.photo_uri_thumb || item.photo_uri;
+                img.alt = item.name;
+            } else {
+                img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23dee2e6" width="100" height="100"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%236c757d" font-size="14">No Photo</text></svg>';
+            }
+
+            // Body
+            const body = document.createElement('div');
+            body.className = 'card-body p-2';
+
+            const title = document.createElement('h6');
+            title.className = 'card-title mb-0';
+            title.textContent = item.name;
+
+            const subtitle = document.createElement('small');
+            subtitle.className = 'text-muted';
+            subtitle.textContent = `Loaned ${item.loan_count} times`;
+
+            body.appendChild(title);
+            body.appendChild(subtitle);
+            card.appendChild(img);
+            card.appendChild(body);
+            col.appendChild(card);
+            grid.appendChild(col);
+        });
+    }
+
+    // Select an item (CRITICAL: hide grid and show summary)
+    
+    // Update photo button text based on whether item has a photo
+    var selectedItemPhotoCount = 0;
+
+    function updatePhotoButtonText(hasPhoto, photoCount) {
+        const buttonText = document.getElementById('photo_button_text');
+        if (buttonText) {
+            if (photoCount && photoCount > 1) {
+                buttonText.textContent = 'Photos (' + photoCount + ')';
+            } else if (hasPhoto) {
+                buttonText.textContent = 'Change Photo';
+            } else {
+                buttonText.textContent = 'Add Photo';
+            }
+        }
+        if (typeof photoCount !== 'undefined') {
+            selectedItemPhotoCount = photoCount;
+        }
+    }
+
+function selectItem(item) {
+        selectedItemId = item.id;
+
+        // Update hidden field
+        document.getElementById('item_id').value = item.id;
+
+        // CRITICAL: Hide search and grid, show summary
+        document.getElementById('item_search_container').style.display = 'none';
+        document.getElementById('items_grid_container').style.display = 'none';
+        document.getElementById('selected_item_summary').style.display = 'block';
+
+        // Populate selected item summary
+        document.getElementById('selected_item_name').textContent = item.name;
+        document.getElementById('selected_item_details').textContent =
+            `Loaned ${item.loan_count} times` +
+            (item.last_loaned ? ` • Last loaned: ${item.last_loaned}` : '');
+        // Update photo button text
+        updatePhotoButtonText((item.photo_uri_thumb || item.photo_uri) ? true : false, item.photo_count || 0);
+
+
+        // Set photo
+        const photoEl = document.getElementById('selected_item_photo');
+        if (item.photo_uri_thumb || item.photo_uri) {
+            photoEl.src = item.photo_uri_thumb || item.photo_uri;
+            photoEl.alt = item.name;
+        } else {
+            photoEl.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23dee2e6" width="100" height="100"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%236c757d" font-size="14">No Photo</text></svg>';
+            photoEl.alt = 'No photo';
+        }
+
+        // Load existing photo in main preview if available
+        if (item.photo_uri_thumb || item.photo_uri) {
+            loadExistingPhoto(item.photo_uri_thumb || item.photo_uri);
+        } else {
+            clearPhotoPreview();
+        }
+        
+        // Photo button now in selected_item_summary, hide separate upload section
+    }
+
+    // Clear selection and return to grid view
+    function clearItemSelection() {
+        selectedItemId = null;
+        document.getElementById('item_id').value = '';
+
+        // Show search and grid, hide summary
+        document.getElementById('item_search_container').style.display = 'block';
+        document.getElementById('items_grid_container').style.display = 'block';
+        document.getElementById('selected_item_summary').style.display = 'none';
+
+        // Clear search filter and show all items
+        document.getElementById('item_search_filter').value = '';
+        renderItemsGrid(itemsData);
+
+        // Clear photo preview
+        clearPhotoPreview();
+        // Reset quantity to 1
+        document.getElementById("quantity_existing").value = 1;
+        document.getElementById("quantity_new").value = 1;
+        
+        // Hide photo upload section
+    }
+
+    // Real-time search filtering
+    document.getElementById('item_search_filter').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase().trim();
+
+        if (searchTerm === '') {
+            // Show all items
+            renderItemsGrid(itemsData);
+        } else {
+            // Filter items by name
+            const filteredItems = itemsData.filter(item =>
+                item.name.toLowerCase().includes(searchTerm)
+            );
+            renderItemsGrid(filteredItems);
+        }
+    });
+
+    // Toggle between new and existing item modes
+    document.querySelectorAll('input[name="item_mode"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const isNewMode = this.value === 'new';
+            document.getElementById('new_item_section').style.display = isNewMode ? 'block' : 'none';
+            document.getElementById('existing_item_section').style.display = isNewMode ? 'none' : 'block';
+
+            // Update required fields
+            document.getElementById('item_name').required = isNewMode;
+
+            // Clear fields when switching modes
+            if (isNewMode) {
+                clearItemSelection();
+                document.getElementById('item_name').value = '';
+            } else {
+                document.getElementById('item_name').value = '';
+            }
+
+            // Clear photo preview when switching modes
+            clearPhotoPreview();
+            
+            // Show/hide photo upload section
+        });
+
+    });
+
+    // Load existing photo for selected item
+    function loadExistingPhoto(photoUri) {
+        const preview = document.getElementById('photo_preview');
+        const previewSection = document.getElementById('photo_preview_section');
+
+        if (preview) preview.src = photoUri;
+        if (previewSection) previewSection.style.display = 'block';
+    }
+    // Handle photo file selection
+    // Handle photo file selection - both existing and new item modes
+    function handlePhotoChange(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const preview = document.getElementById("photo_preview");
+                const previewSection = document.getElementById("photo_preview_section");
+                if (preview) preview.src = event.target.result;
+                if (previewSection) previewSection.style.display = "block";
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+    var photoExistingEl = document.getElementById("photo_existing");
+    if (photoExistingEl) photoExistingEl.addEventListener("change", handlePhotoChange);
+    // photo_new listener removed - using multi-photo handler
+
+    // Remove photo
+    var removePhotoBtn = document.getElementById('remove_photo');
+    if (removePhotoBtn) {
+        removePhotoBtn.addEventListener('click', function() {
+            clearPhotoPreview();
+        });
+    }
+
+    function clearPhotoPreview() {
+        const preview = document.getElementById('photo_preview');
+        const previewSection = document.getElementById('photo_preview_section');
+
+        if (preview) preview.src = '';
+        if (previewSection) previewSection.style.display = 'none';
+    }
+
+    // Auto-capitalize first character of item name
+    document.getElementById('item_name').addEventListener('input', function(e) {
+        const value = e.target.value;
+        if (value.length > 0) {
+            e.target.value = value.charAt(0).toUpperCase() + value.slice(1);
+        }
+    });
+
+
+    // ========== CONTACT MANAGEMENT FUNCTIONS ==========
+
+    // Detect Contact Picker API support (mobile)
+    if ('contacts' in navigator && 'ContactsManager' in window) {
+        document.addEventListener('DOMContentLoaded', function() {
+            const importContainer = document.getElementById('import_contact_container');
+            if (importContainer) {
+                importContainer.style.display = 'block';
+            }
+        });
+    }
+
+    // Show picker modal when contact has multiple values for a field
+    function pickFromMultiple(title, explanation, values) {
+        return new Promise(function(resolve) {
+            var modalEl = document.getElementById('multiPickerModal');
+            document.getElementById('multiPickerTitle').textContent = title;
+            document.getElementById('multiPickerExplanation').textContent = explanation;
+            var list = document.getElementById('multiPickerList');
+            list.innerHTML = '';
+            values.forEach(function(val) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action';
+                btn.textContent = val;
+                btn.addEventListener('click', function() {
+                    modalEl.style.display = 'none';
+                    document.querySelector('.modal-backdrop')?.remove();
+                    document.body.classList.remove('modal-open');
+                    resolve(val);
+                });
+                list.appendChild(btn);
+            });
+            modalEl.style.display = 'block';
+            document.body.classList.add('modal-open');
+            var backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop';
+            document.body.appendChild(backdrop);
+        });
+    }
+
+    // Import from device contacts (mobile)
+    async function importFromContacts() {
+        try {
+            const contacts = await navigator.contacts.select(
+                ['name', 'email', 'tel'],
+                { multiple: false }
+            );
+
+            if (contacts && contacts.length > 0) {
+                const contact = contacts[0];
+
+                // Name - single value
+                if (contact.name && contact.name.length > 0) {
+                    document.getElementById('contact_name').value = Array.isArray(contact.name) ? contact.name[0] : contact.name;
+                }
+
+                // Phone - show picker if multiple
+                var phone = '';
+                if (contact.tel && contact.tel.length > 1) {
+                    phone = await pickFromMultiple(
+                        'Multiple Phone Numbers',
+                        'This contact has more than one phone number. Tap the one you would like to use.',
+                        contact.tel
+                    );
+                } else if (contact.tel && contact.tel.length === 1) {
+                    phone = contact.tel[0];
+                }
+                document.getElementById('contact_phone').value = phone;
+
+                // Email - show picker if multiple
+                var email = '';
+                if (contact.email && contact.email.length > 1) {
+                    email = await pickFromMultiple(
+                        'Multiple Email Addresses',
+                        'This contact has more than one email address. Tap the one you would like to use.',
+                        contact.email
+                    );
+                } else if (contact.email && contact.email.length === 1) {
+                    email = contact.email[0];
+                }
+                document.getElementById('contact_email').value = email;
+
+                // Check for duplicates after importing
+                checkDuplicateContact();
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Contact picker error:', error);
+                alert('Could not access contacts. Please enter manually.');
+            }
+        }
+    }
+
+    // Wrapper function for duplicate contact check
+    function checkDuplicateContact() {
+        contactDuplicateChecker.check();
+    }
+
+    // Wrapper function for duplicate item check
+    function checkDuplicateItem() {
+        itemDuplicateChecker.check();
+    }
+
+    // Custom handling for loan page: override "Edit Existing" button behavior
+    // to auto-select the contact after returning from edit
+    document.addEventListener('DOMContentLoaded', function() {
+        // Store contact ID in URL when clicking Edit Existing from duplicate modal
+        const editBtn = document.getElementById('edit_existing_btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href && href.includes('/contacts/')) {
+                    // Extract contact ID from href like "/contacts/46/edit"
+                    const match = href.match(/\/contacts\/(\d+)\/edit/);
+                    if (match) {
+                        const contactId = match[1];
+                        // Store in sessionStorage to use after redirect
+                        sessionStorage.setItem('autoSelectContactId', contactId);
+                    }
+                }
+            });
+        }
+
+        // After page load, check if we should auto-select a contact
+        const autoSelectId = sessionStorage.getItem('autoSelectContactId');
+        if (autoSelectId) {
+            sessionStorage.removeItem('autoSelectContactId');
+            // Wait for contacts to load, then select
+            setTimeout(async function() {
+                await loadContacts();
+                const contact = contactsData.find(c => c.id == autoSelectId);
+                if (contact) {
+                    selectContact(contact);
+                }
+            }, 500);
+        }
+    });
+
+    // Load contacts from API
+    async function loadContacts() {
+        try {
+            const response = await fetch('{{ url_for("api_contacts") }}');
+            contactsData = await response.json();
+            renderContactsGrid(contactsData);
+        } catch (error) {
+            console.error('Error loading contacts:', error);
+        }
+    }
+
+    // Render contacts grid
+    function renderContactsGrid(contacts) {
+        const grid = document.getElementById('contacts_grid');
+        const label = document.getElementById('contact_select_label');
+        grid.innerHTML = '';
+
+        if (contacts.length === 0) {
+            // Hide label when no contacts, but show message in grid
+            if (label) label.style.display = 'none';
+            grid.innerHTML = '<div class="col-12"><div class="alert alert-info">No contacts found. Create a new contact instead.</div></div>';
+            return;
+        }
+
+        // Show label when contacts exist
+        if (label) label.style.display = 'block';
+
+        // Sort contacts alphabetically by name
+        contacts.sort((a, b) => a.name.localeCompare(b.name));
+
+        contacts.forEach(contact => {
+            const col = document.createElement('div');
+            col.className = 'col-6 col-md-3 col-lg-2';
+
+            const card = document.createElement('div');
+            card.className = 'card contact-card text-center';
+            card.dataset.contactId = contact.id;
+            card.dataset.contactName = contact.name.toLowerCase();
+            card.onclick = () => selectContact(contact);
+
+            // Avatar with initials
+            const avatar = document.createElement('div');
+            avatar.className = 'contact-avatar';
+            avatar.textContent = getInitials(contact.name);
+
+            // Body
+            const body = document.createElement('div');
+            body.className = 'card-body p-2';
+
+            const title = document.createElement('h6');
+            title.className = 'card-title mb-0';
+            title.textContent = contact.name;
+
+            const subtitle = document.createElement('small');
+            subtitle.className = 'text-muted';
+            subtitle.textContent = `${contact.loan_count} loans`;
+
+            body.appendChild(avatar);
+            body.appendChild(title);
+            body.appendChild(subtitle);
+            card.appendChild(body);
+            col.appendChild(card);
+            grid.appendChild(col);
+        });
+    }
+
+    // Get initials from name
+    function getInitials(name) {
+        const parts = name.trim().split(' ');
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    }
+
+    // Select a contact (CRITICAL: hide grid and show summary)
+    function selectContact(contact) {
+        selectedContactId = contact.id;
+
+        // Update hidden field
+        document.getElementById('contact_id').value = contact.id;
+
+        // CRITICAL: Hide search and grid, show summary
+        document.getElementById('contact_search_container').style.display = 'none';
+        document.getElementById('contacts_grid_container').style.display = 'none';
+        document.getElementById('selected_contact_summary').style.display = 'block';
+
+        // Populate selected contact summary
+        document.getElementById('selected_contact_name').textContent = contact.name;
+
+        // Build comprehensive details display with all contact info
+        let details = [];
+        if (contact.phone) {
+            details.push(`📞 ${contact.phone}`);
+        }
+        if (contact.email) {
+            details.push(`📧 ${contact.email}`);
+        }
+        details.push(`${contact.loan_count} loan${contact.loan_count !== 1 ? 's' : ''}`);
+        if (contact.last_loaned) {
+            details.push(`Last loaned: ${contact.last_loaned}`);
+        }
+        
+        document.getElementById('selected_contact_details').innerHTML = details.join('<br>');
+
+        // Set avatar
+        const avatarEl = document.getElementById('selected_contact_avatar');
+        avatarEl.textContent = getInitials(contact.name);
+    }
+
+    // Clear selection and return to grid view
+    function clearContactSelection() {
+        selectedContactId = null;
+        document.getElementById('contact_id').value = '';
+
+        // Show search and grid, hide summary
+        document.getElementById('contact_search_container').style.display = 'block';
+        document.getElementById('contacts_grid_container').style.display = 'block';
+        document.getElementById('selected_contact_summary').style.display = 'none';
+
+        // Clear search filter and show all contacts
+        document.getElementById('contact_search_filter').value = '';
+        renderContactsGrid(contactsData);
+    }
+
+    // Real-time search filtering for contacts
+    document.getElementById('contact_search_filter').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase().trim();
+
+        if (searchTerm === '') {
+            renderContactsGrid(contactsData);
+        } else {
+            const filteredContacts = contactsData.filter(contact =>
+                contact.name.toLowerCase().includes(searchTerm) ||
+                (contact.email && contact.email.toLowerCase().includes(searchTerm)) ||
+                (contact.phone && contact.phone.includes(searchTerm))
+            );
+            renderContactsGrid(filteredContacts);
+        }
+    });
+
+    // Toggle between new and existing contact modes
+    document.querySelectorAll('input[name="contact_mode"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const isNewMode = this.value === 'new';
+            document.getElementById('new_contact_section').style.display = isNewMode ? 'block' : 'none';
+            document.getElementById('existing_contact_section').style.display = isNewMode ? 'none' : 'block';
+
+            // Update required fields
+            document.getElementById('contact_name').required = isNewMode;
+
+            // Clear fields when switching modes
+            if (isNewMode) {
+                clearContactSelection();
+            } else {
+                // Only clear if user manually switched modes (not from duplicate detection)
+                // Check if fields are empty first
+                if (!document.getElementById('contact_name').value) {
+                    document.getElementById('contact_email').value = '';
+                    document.getElementById('contact_phone').value = '';
+                }
+                // Load contacts if not already loaded
+                if (contactsData.length === 0) {
+                    loadContacts();
+                }
+            }
+        });
+    });
+    // Form validation
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const modeNew = document.getElementById('mode_new').checked;
+        const contactModeNew = document.getElementById('contact_mode_new').checked;
+
+        // Check item
+        if (modeNew) {
+            // New item mode: require item_name
+            if (!document.getElementById('item_name').value.trim()) {
+                e.preventDefault();
+                alert('Please enter an item name');
+                return false;
+            }
+        } else {
+            // Existing item mode: require item_id
+            if (!document.getElementById('item_id').value) {
+                e.preventDefault();
+                alert('Please select an item from the list');
+                return false;
+            }
+        }
+
+        // Check contact
+        if (contactModeNew) {
+            // New contact mode: require contact_name
+            const contactName = document.getElementById('contact_name').value.trim();
+            console.log('Validating new contact - Name:', contactName);
+            if (!contactName) {
+                e.preventDefault();
+                alert('Please enter a contact name');
+                return false;
+            }
+        } else {
+            // Existing contact mode: require contact_id
+            const contactId = document.getElementById('contact_id').value;
+            console.log('Validating existing contact - ID:', contactId);
+            if (!contactId) {
+                e.preventDefault();
+                alert('Please select a contact from the list');
+                return false;
+            }
+        }
+        
+        console.log('Form validation passed, submitting...');
+    });
+
+
+
+    // ========== NEW ITEM MULTI-PHOTO FUNCTIONS ==========
+    var newItemSelectedFiles = [];
+
+    function handleNewItemPhotoAdd(input) {
+        var files = Array.from(input.files);
+        files.forEach(function(file) {
+            newItemSelectedFiles.push(file);
+        });
+        input.value = '';
+        renderNewItemPreviews();
+    }
+
+    function removeNewItemPhoto(index) {
+        newItemSelectedFiles.splice(index, 1);
+        renderNewItemPreviews();
+    }
+
+    function renderNewItemPreviews() {
+        var container = document.getElementById('newitem_photo_thumbnails');
+        var area = document.getElementById('newitem_photo_preview_area');
+        container.innerHTML = '';
+
+        if (newItemSelectedFiles.length === 0) {
+            area.style.display = 'none';
+            return;
+        }
+
+        area.style.display = 'block';
+
+        newItemSelectedFiles.forEach(function(file, idx) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'position-relative';
+            wrapper.style.width = '120px';
+
+            var img = document.createElement('img');
+            img.className = 'img-thumbnail';
+            img.style.cssText = 'width: 120px; height: 120px; object-fit: cover;';
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn btn-sm btn-danger position-absolute top-0 end-0';
+            removeBtn.style.cssText = 'padding: 0 5px; font-size: 14px; line-height: 1.2; border-radius: 50%;';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.onclick = function() { removeNewItemPhoto(idx); };
+
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
+            container.appendChild(wrapper);
+        });
+    }
+
+    // ========== PHOTO PICKER MODAL FUNCTIONS ==========
+
+    function openPhotoModal() {
+        if (!selectedItemId) return;
+        var modal = new bootstrap.Modal(document.getElementById('photoPickerModal'));
+        loadModalPhotoGallery();
+        modal.show();
+    }
+
+    function loadModalPhotoGallery() {
+        var gallery = document.getElementById('modalPhotoGallery');
+        gallery.innerHTML = '<div class="text-muted small">Loading photos...</div>';
+
+        fetch('{{ config.URL_PREFIX }}/api/items/' + selectedItemId + '/photos')
+            .then(function(r) { return r.json(); })
+            .then(function(photos) {
+                renderModalGallery(photos);
+            })
+            .catch(function(err) {
+                gallery.innerHTML = '<div class="text-muted small">Could not load photos</div>';
+            });
+    }
+
+    function renderModalGallery(photos) {
+        var gallery = document.getElementById('modalPhotoGallery');
+        gallery.innerHTML = '';
+
+        if (photos.length === 0) {
+            gallery.innerHTML = '<div class="text-muted small">No photos yet. Upload one below.</div>';
+            return;
+        }
+
+        photos.forEach(function(photo) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'position-relative';
+            wrapper.style.width = '120px';
+
+            var img = document.createElement('img');
+            img.src = photo.photo_uri_display || photo.photo_uri;
+            img.className = 'img-thumbnail';
+            img.style.cssText = 'width: 120px; height: 120px; object-fit: cover; cursor: pointer;';
+            if (photo.is_default) {
+                img.style.border = '3px solid #ffc107';
+            }
+            img.title = photo.is_default ? 'Default photo' : 'Click star to set as default';
+
+            // Star button
+            var starBtn = document.createElement('button');
+            starBtn.type = 'button';
+            starBtn.className = 'btn btn-sm position-absolute top-0 start-0';
+            starBtn.style.cssText = 'padding: 0 4px; font-size: 16px; line-height: 1; background: rgba(255,255,255,0.8); border-radius: 50%;';
+            starBtn.innerHTML = photo.is_default ? '&#9733;' : '&#9734;';
+            starBtn.style.color = photo.is_default ? '#ffc107' : '#6c757d';
+            starBtn.title = photo.is_default ? 'Default photo' : 'Set as default';
+            starBtn.onclick = function() { modalSetDefault(photo.id); };
+
+            // Delete button
+            var deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'btn btn-sm btn-danger position-absolute top-0 end-0';
+            deleteBtn.style.cssText = 'padding: 0 5px; font-size: 14px; line-height: 1.2; border-radius: 50%;';
+            deleteBtn.innerHTML = '&times;';
+            deleteBtn.title = 'Delete photo';
+            deleteBtn.onclick = function() { modalDeletePhoto(photo.id); };
+
+            wrapper.appendChild(img);
+            wrapper.appendChild(starBtn);
+            wrapper.appendChild(deleteBtn);
+            gallery.appendChild(wrapper);
+        });
+    }
+
+    function modalSetDefault(photoId) {
+        fetch('{{ config.URL_PREFIX }}/api/items/' + selectedItemId + '/photos/' + photoId + '/set_default', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                loadModalPhotoGallery();
+                refreshSelectedItemPhoto();
+            } else {
+                alert('Error: ' + (data.error || 'Could not set default'));
+            }
+        })
+        .catch(function() { alert('Error setting default photo'); });
+    }
+
+    function modalDeletePhoto(photoId) {
+        if (!confirm('Delete this photo?')) return;
+
+        fetch('{{ config.URL_PREFIX }}/api/items/' + selectedItemId + '/photos/' + photoId, {
+            method: 'DELETE'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                loadModalPhotoGallery();
+                refreshSelectedItemPhoto();
+            } else {
+                alert('Error: ' + (data.error || 'Could not delete photo'));
+            }
+        })
+        .catch(function() { alert('Error deleting photo'); });
+    }
+
+    function modalUploadPhotos(input) {
+        var files = input.files;
+        if (!files || files.length === 0) return;
+
+        var statusEl = document.getElementById('modalUploadStatus');
+        statusEl.style.display = 'block';
+        statusEl.textContent = 'Uploading ' + files.length + ' photo(s)...';
+
+        var formData = new FormData();
+        for (var i = 0; i < files.length; i++) {
+            formData.append('photos', files[i]);
+        }
+
+        fetch('{{ config.URL_PREFIX }}/api/items/' + selectedItemId + '/photos', {
+            method: 'POST',
+            body: formData
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                statusEl.textContent = 'Uploaded ' + data.photos.length + ' photo(s)';
+                setTimeout(function() { statusEl.style.display = 'none'; }, 2000);
+                loadModalPhotoGallery();
+                refreshSelectedItemPhoto();
+            } else {
+                statusEl.textContent = 'Error: ' + (data.error || 'Upload failed');
+            }
+        })
+        .catch(function() {
+            statusEl.textContent = 'Error uploading photos';
+        });
+
+        input.value = '';
+    }
+
+    function refreshSelectedItemPhoto() {
+        if (!selectedItemId) return;
+
+        fetch('{{ config.URL_PREFIX }}/api/items/' + selectedItemId + '/photos')
+            .then(function(r) { return r.json(); })
+            .then(function(photos) {
+                var defaultPhoto = photos.find(function(p) { return p.is_default; });
+                var photoEl = document.getElementById('selected_item_photo');
+
+                if (defaultPhoto) {
+                    photoEl.src = defaultPhoto.photo_uri_display || defaultPhoto.photo_uri;
+                } else if (photos.length > 0) {
+                    photoEl.src = photos[0].photo_uri_display || photos[0].photo_uri;
+                } else {
+                    photoEl.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23dee2e6" width="100" height="100"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%236c757d" font-size="14">No Photo</text></svg>';
+                }
+
+                updatePhotoButtonText(photos.length > 0, photos.length);
+            })
+            .catch(function() { /* silently fail */ });
+    }
+
+    // Reset form to initial state
+    function resetForm() {
+        // Clear selected item
+        selectedItemId = null;
+        document.getElementById('item_id').value = '';
+        
+        // Hide selected item summary, show search/grid
+        document.getElementById('selected_item_summary').style.display = 'none';
+        document.getElementById('item_search_container').style.display = 'block';
+        document.getElementById('items_grid_container').style.display = 'block';
+        
+        // Clear item name field
+        document.getElementById('item_name').value = '';
+        
+        // Clear contact fields
+        document.getElementById('contact_id').value = '';
+        document.getElementById('contact_name').value = '';
+        document.getElementById('contact_email').value = '';
+        document.getElementById('contact_phone').value = '';
+        
+        // Clear other form fields
+        document.getElementById('return_date').value = '';
+        document.getElementById('notes').value = '';
+        
+        // Clear photo
+        const photoExisting = document.getElementById("photo_existing");
+        if (photoExisting) photoExisting.value = "";
+        const photoNew = document.getElementById("photo_new");
+        if (photoNew) photoNew.value = "";
+        const photoFilename = document.getElementById('photo_filename');
+        if (photoFilename) photoFilename.textContent = '';
+        
+        clearPhotoPreview();
+        newItemSelectedFiles = [];
+        renderNewItemPreviews();
+        
+        // Reset to default modes
+        document.getElementById('mode_existing').checked = true;
+        document.getElementById('contact_mode_existing').checked = true;
+        
+        // Show/hide appropriate sections
+        document.getElementById('existing_item_section').style.display = 'block';
+        document.getElementById('new_item_section').style.display = 'none';
+        document.getElementById('existing_contact_section').style.display = 'block';
+        document.getElementById('new_contact_section').style.display = 'none';
+    }
+
+
+    // Override form submit to handle multi-photo for new items
+    (function() {
+        var form = document.querySelector('form[method="post"]');
+        if (!form) return;
+
+        form.addEventListener('submit', function(e) {
+            var isNewMode = document.getElementById('mode_new') && document.getElementById('mode_new').checked;
+            if (!isNewMode || newItemSelectedFiles.length === 0) return;
+
+            e.preventDefault();
+            var formData = new FormData(form);
+
+            // Remove any existing photo entries from file inputs
+            formData.delete('photo');
+
+            // Add all selected files
+            newItemSelectedFiles.forEach(function(file) {
+                formData.append('photo', file);
+            });
+
+            fetch(form.action || window.location.href, {
+                method: 'POST',
+                body: formData
+            }).then(function(response) {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Error submitting form');
+                }
+            }).catch(function(err) {
+                alert('Error: ' + err.message);
+            });
+        });
+    })();
+
+    // Reset form on page load
+    resetForm();
+
+    // Load items and contacts on page load
+    loadItems();
+    loadContacts();  // Load contacts since "Existing Contact" is now default
+</script>
+
+<script>
+// Show filename when photo is selected
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.custom-file-upload').forEach(input => {
+        input.addEventListener('change', function() {
+            const filenameSpan = document.getElementById(this.id + '_filename');
+            if (filenameSpan && this.files && this.files.length > 0) {
+                filenameSpan.textContent = this.files[0].name;
+            } else if (filenameSpan) {
+                filenameSpan.textContent = '';
+            }
+        });
+    });
+    // Sync quantity between existing and new item modes
+    document.getElementById("quantity_existing").addEventListener("input", function() {
+        document.getElementById("quantity_new").value = this.value;
+    });
+
+    document.getElementById("quantity_new").addEventListener("input", function() {
+        document.getElementById("quantity_existing").value = this.value;
+    });
+});
+</script>
+
+<!-- Photo Picker Modal -->
+<div class="modal fade" id="photoPickerModal" tabindex="-1" aria-labelledby="photoPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="photoPickerModalLabel">Item Photos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Existing Photos Gallery -->
+                <div id="modalPhotoGallery" class="d-flex flex-wrap gap-2 mb-3"></div>
+
+                <hr>
+
+                <!-- Upload Section -->
+                <p class="mb-2 fw-bold">Add New Photo</p>
+                <div class="d-flex gap-2">
+                    <label for="modal_photo_camera" class="btn btn-secondary btn-sm">📷 Take Photo</label>
+                    <input type="file" class="d-none" id="modal_photo_camera"
+                           accept="image/*" capture="environment" onchange="modalUploadPhotos(this)">
+                    <label for="modal_photo_gallery" class="btn btn-outline-secondary btn-sm">🖼 <span class="gallery-btn-label">Choose from Gallery</span></label>
+                    <input type="file" class="d-none" id="modal_photo_gallery"
+                           accept="image/*" multiple onchange="modalUploadPhotos(this)">
+                </div>
+                <div id="modalUploadStatus" class="text-muted small mt-2" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

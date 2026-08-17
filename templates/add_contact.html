@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% from "macros/duplicate_modals.html" import duplicate_modal, fuzzy_modal %}
+
+
+{% block title %}Add Contact{% endblock %}
+
+{% block page_title %}<h2 class="fw-bold" style="font-size: 1.6rem; color: #1a3a5c; margin: 0; flex: 1; text-align: center;">Add New Contact</h2>{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+
+        {% if request.args.get('error') %}
+        <div class="alert alert-danger alert-dismissible fade show">
+            {{ request.args.get('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <form method="POST" class="needs-validation" novalidate id="contact_form">
+            <!-- Import from Contacts button (mobile only) -->
+            <div id="import_contact_container" style="display: none;">
+                <button type="button" class="btn btn-outline-primary w-100 mb-3" onclick="importFromContacts()">
+                    📱 Import from Phone Contacts
+                </button>
+                <div class="text-center mb-2">
+                    <small class="text-muted">or enter manually</small>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="name" name="name" required autofocus
+                       onblur="checkDuplicateContact()">
+                <div class="invalid-feedback">
+                    Please enter a name.
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" name="email" placeholder="optional"
+                       onblur="checkDuplicateContact()">
+            </div>
+
+            <div class="mb-3">
+                <label for="phone" class="form-label">Phone</label>
+                <input type="tel" class="form-control" id="phone" name="phone" placeholder="optional"
+                       onblur="checkDuplicateContact()">
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Add Contact</button>
+                <a href="{{ url_for('contacts') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Duplicate detection modals -->
+{{ duplicate_modal("contact") }}
+{{ fuzzy_modal("contact") }}
+
+<!-- Multiple Value Picker Modal -->
+<div class="modal" id="multiPickerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="multiPickerTitle">Select One</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="multiPickerExplanation" class="text-muted">This contact has multiple entries. We can only store one - tap the one you'd like to use.</p>
+                <div id="multiPickerList" class="list-group">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/duplicate-checker.js') }}"></script>
+<script>
+    // Initialize duplicate checker
+    const duplicateChecker = new DuplicateChecker({
+        type: 'contact',
+        checkUrl: '{{ url_for("check_duplicate_contact") }}',
+        mergeUrl: '{{ url_for("merge_contact") }}',
+        reactivateUrl: '{{ url_for("reactivate_contact") }}',
+        redirectUrl: '{{ url_for("contacts") }}',
+        urlPrefix: '{{ config.URL_PREFIX }}',
+        getFormData: function() {
+            return {
+                name: document.getElementById('name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value.trim()
+            };
+        }
+    });
+
+    function pickFromMultiple(title, explanation, values) {
+        return new Promise(function(resolve) {
+            var modalEl = document.getElementById('multiPickerModal');
+            document.getElementById('multiPickerTitle').textContent = title;
+            document.getElementById('multiPickerExplanation').textContent = explanation;
+            var list = document.getElementById('multiPickerList');
+            list.innerHTML = '';
+            values.forEach(function(val) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action';
+                btn.textContent = val;
+                btn.addEventListener('click', function() {
+                    modalEl.style.display = 'none';
+                    document.querySelector('.modal-backdrop')?.remove();
+                    document.body.classList.remove('modal-open');
+                    resolve(val);
+                });
+                list.appendChild(btn);
+            });
+            // Show modal manually - more reliable on mobile than Bootstrap's show()
+            modalEl.style.display = 'block';
+            document.body.classList.add('modal-open');
+            // Add backdrop
+            var backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop';
+            document.body.appendChild(backdrop);
+        });
+    }
+
+    // Import from phone contacts (Contact Picker API)
+    async function importFromContacts() {
+        try {
+            const contacts = await navigator.contacts.select(
+                ['name', 'email', 'tel'],
+                { multiple: false }
+            );
+
+            if (contacts && contacts.length > 0) {
+                const contact = contacts[0];
+
+                // Name - single value
+                if (contact.name && contact.name.length > 0) {
+                    document.getElementById('name').value = Array.isArray(contact.name) ? contact.name[0] : contact.name;
+                }
+
+                // Phone - show picker if multiple
+                var phone = '';
+                if (contact.tel && contact.tel.length > 1) {
+                    phone = await pickFromMultiple(
+                        'Multiple Phone Numbers',
+                        'This contact has more than one phone number. Tap the one you would like to store.',
+                        contact.tel
+                    );
+                } else if (contact.tel && contact.tel.length === 1) {
+                    phone = contact.tel[0];
+                }
+                document.getElementById('phone').value = phone;
+
+                // Email - show picker if multiple
+                var email = '';
+                if (contact.email && contact.email.length > 1) {
+                    email = await pickFromMultiple(
+                        'Multiple Email Addresses',
+                        'This contact has more than one email address. Tap the one you would like to store.',
+                        contact.email
+                    );
+                } else if (contact.email && contact.email.length === 1) {
+                    email = contact.email[0];
+                }
+                document.getElementById('email').value = email;
+
+                // Check for duplicates after importing
+                checkDuplicateContact();
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Contact picker error:', error);
+                alert('Could not access contacts. Please enter manually.');
+            }
+        }
+    }
+
+    // Wrapper function for backward compatibility with onblur handlers
+    function checkDuplicateContact() {
+        duplicateChecker.check();
+    }
+
+    // Detect Contact Picker API support (mobile)
+    if ('contacts' in navigator && 'ContactsManager' in window) {
+        document.addEventListener('DOMContentLoaded', function() {
+            const importContainer = document.getElementById('import_contact_container');
+            if (importContainer) {
+                importContainer.style.display = 'block';
+            }
+        });
+    }
+
+    // Form validation
+    (function() {
+        'use strict';
+        var forms = document.querySelectorAll('.needs-validation');
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+{% endblock %}

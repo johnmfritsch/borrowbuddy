@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% from "macros/duplicate_modals.html" import duplicate_modal, fuzzy_modal %}
+
+
+{% block title %}Add Item{% endblock %}
+
+{% block page_title %}<h2 class="fw-bold" style="font-size: 1.6rem; color: #1a3a5c; margin: 0; flex: 1; text-align: center;">Add New Item</h2>{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+
+        {% if request.args.get('error') %}
+        <div class="alert alert-danger alert-dismissible fade show">
+            {{ request.args.get('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate id="item_form">
+            <div class="mb-3">
+                <label for="name" class="form-label">Item Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="name" name="name" required autofocus
+                       onblur="checkDuplicateItem()">
+                <div class="invalid-feedback">
+                    Please enter an item name.
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="3" placeholder="optional"
+                          onblur="checkDuplicateItem()"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <span class="form-label d-block">Add Photo(s) <span class="text-muted fw-normal">(Optional)</span></span>
+                <div class="d-flex gap-2 mt-1">
+                    <label for="photo_camera" class="btn btn-secondary btn-sm">📷 Take Photo</label>
+                    <input type="file" class="d-none" id="photo_camera" name="photo"
+                           accept="image/*" capture="environment" onchange="handlePhotoAdd(this)">
+                    <label for="photo_gallery" class="btn btn-outline-secondary btn-sm">🖼 <span class="gallery-btn-label">Choose from Gallery</span></label>
+                    <input type="file" class="d-none" id="photo_gallery" name="photo"
+                           accept="image/*" multiple onchange="handlePhotoAdd(this)">
+                </div>
+            </div>
+
+            <!-- Photo previews -->
+            <div id="photoPreviewArea" class="mb-3" style="display: none;">
+                <label class="form-label">Photos to Upload:</label>
+                <div id="photoThumbnails" class="d-flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Add Item</button>
+                <a href="{{ url_for('items') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Duplicate detection modals -->
+{{ duplicate_modal("item") }}
+
+{{ fuzzy_modal("item") }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/duplicate-checker.js') }}?v=1770488952"></script>
+<script>
+    // Initialize duplicate checker
+    const duplicateChecker = new DuplicateChecker({
+        type: 'item',
+        checkUrl: '{{ url_for("check_duplicate_item") }}',
+        mergeUrl: '{{ url_for("merge_item") }}',
+        reactivateUrl: '{{ url_for("reactivate_item") }}',
+        redirectUrl: '{{ url_for("items") }}',
+        urlPrefix: '{{ config.URL_PREFIX }}',
+        getFormData: function() {
+            return {
+                name: document.getElementById('name').value.trim(),
+                description: document.getElementById('description').value.trim(),
+                has_photo: selectedFiles.length > 0
+            };
+        }
+    });
+
+    // Track selected files across both inputs
+    var selectedFiles = [];
+
+    function handlePhotoAdd(input) {
+        var files = Array.from(input.files);
+        files.forEach(function(file) {
+            selectedFiles.push(file);
+        });
+        // Reset the input so the same file can be added again if needed
+        input.value = '';
+        renderPreviews();
+        checkDuplicateItem();
+    }
+
+    function removePhoto(index) {
+        selectedFiles.splice(index, 1);
+        renderPreviews();
+    }
+
+    function renderPreviews() {
+        var container = document.getElementById('photoThumbnails');
+        var area = document.getElementById('photoPreviewArea');
+        container.innerHTML = '';
+
+        if (selectedFiles.length === 0) {
+            area.style.display = 'none';
+            return;
+        }
+
+        area.style.display = 'block';
+
+        selectedFiles.forEach(function(file, idx) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'position-relative';
+            wrapper.style.width = '120px';
+
+            var img = document.createElement('img');
+            img.className = 'img-thumbnail';
+            img.style.cssText = 'width: 120px; height: 120px; object-fit: cover;';
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn btn-sm btn-danger position-absolute top-0 end-0';
+            removeBtn.style.cssText = 'padding: 0 5px; font-size: 14px; line-height: 1.2; border-radius: 50%;';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.onclick = function() { removePhoto(idx); };
+
+            var nameLabel = document.createElement('small');
+            nameLabel.className = 'text-muted d-block text-truncate';
+            nameLabel.style.maxWidth = '120px';
+            nameLabel.textContent = file.name;
+
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
+            wrapper.appendChild(nameLabel);
+            container.appendChild(wrapper);
+        });
+    }
+
+    // Override form submit to attach selected files
+    document.getElementById('item_form').addEventListener('submit', function(e) {
+        if (!this.checkValidity()) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.add('was-validated');
+            return;
+        }
+
+        if (selectedFiles.length > 0) {
+            // Create a new FormData and replace the form submission
+            e.preventDefault();
+            var formData = new FormData(this);
+
+            // Remove any existing photo entries
+            formData.delete('photo');
+
+            // Add all selected files
+            selectedFiles.forEach(function(file) {
+                formData.append('photo', file);
+            });
+
+            fetch(this.action || window.location.href, {
+                method: 'POST',
+                body: formData
+            }).then(function(response) {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    window.location.href = '{{ url_for("items") }}';
+                }
+            }).catch(function(error) {
+                alert('Error adding item. Please try again.');
+            });
+        }
+        // If no files selected, let the normal form submit happen
+    });
+
+    // Check for duplicate item
+    function checkDuplicateItem() {
+        duplicateChecker.check();
+    }
+</script>
+{% endblock %}

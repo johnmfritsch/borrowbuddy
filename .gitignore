@@ -1,0 +1,41 @@
+# ── Secrets ──
+secret_key.txt
+.env
+.env.*
+config.local.*
+*.pem
+*.key
+
+# ── Database and user data ──
+*.db
+*.sqlite
+*.sqlite3
+data/
+# Item and return photos uploaded through the app
+static/images/*
+!static/images/.gitkeep
+
+# ── Runtime output ──
+*.log
+nohup.out
+*_result.txt
+*_check.txt
+
+# ── Timestamped backups ──
+*.bak
+*.backup_*
+*_backup_*
+TRASH/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ── Tooling / OS cruft ──
+.claude/
+.vscode/
+*.code-workspace
+desktop.ini
+Thumbs.db

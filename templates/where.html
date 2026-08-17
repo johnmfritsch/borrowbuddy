@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}Where's My Stuff?{% endblock %}
+
+{% block page_title %}<h2 class="fw-bold" style="font-size: 1.6rem; color: #1a3a5c; margin: 0; flex: 1; text-align: center;">Current Loans</h2>{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-4 has-action-toolbar">
+    <div class="col-md-10">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <a href="{{ url_for('loan') }}" class="btn btn-primary">
+                ➕ New Loan
+            </a>
+        </div>
+
+        {% if request.args.get("message") %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert" id="statusMessage">
+            {{ request.args.get("message") }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onclick="clearMessageFromUrl()"></button>
+        </div>
+        {% endif %}
+
+
+        <!-- Search Box -->
+        <div class="mb-3">
+            <input type="text" class="form-control" id="searchBox"
+                   placeholder="Search loans by item name, contact, dates, or notes...">
+        </div>
+
+        {% if loans|length == 0 %}
+        <div class="alert alert-info">
+            No items currently loaned out.
+        </div>
+        {% else %}
+        <div class="list-group">
+            {% for loan in loans %}
+            <div class="list-group-item loan-card selectable-item"
+                 data-id="{{ loan.id }}"
+                 data-item-name="{{ loan.item_name }}"
+                 data-item-name-lower="{{ loan.item_name|lower }}"
+                 data-contact-name="{{ loan.contact_name }}"
+                 data-contact-name-lower="{{ loan.contact_name|lower }}"
+                 data-loan-date="{{ loan.date_loaned }}"
+                 data-return-date="{{ loan.return_date if loan.return_date else '' }}"
+                 data-notes="{{ loan.notes|lower if loan.notes else '' }}">
+                <div class="d-flex mb-2">
+                    <div class="me-3">
+                        {% if loan.photo_uri_thumb %}
+                        <img src="{{ loan.photo_uri_thumb }}" alt="{{ loan.item_name }}" class="img-thumbnail" loading="lazy" style="width: 80px; height: 80px; object-fit: cover;">
+                        {% elif loan.photo_uri %}
+                        <img src="{{ loan.photo_uri }}" alt="{{ loan.item_name }}" class="img-thumbnail" loading="lazy" style="width: 80px; height: 80px; object-fit: cover;">
+                        {% else %}
+                        <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border: 1px solid #dee2e6;">
+                            <span class="text-muted small">No photo</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h5 class="mb-1">{{ loan.item_name }}
+                        {% if loan.quantity and loan.quantity > 1 %}
+                        <span class="badge bg-primary ms-2">qty: {{ loan.quantity }}</span>
+                        {% endif %}</h5>
+                        <div class="text-muted small">
+                            <strong>Borrowed by:</strong> {{ loan.contact_name }}<br>
+                            <strong>Loaned:</strong> {{ loan.date_loaned }}
+                            {% if loan.return_date %}
+                            <br><strong>Due back:</strong> {{ loan.return_date }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if loan.notes %}
+                <div class="text-muted small"><strong>Notes:</strong> {{ loan.notes }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+        </div>
+    </div>
+</div>
+
+<!-- Action Toolbar -->
+<div class="action-toolbar" id="actionToolbar">
+    <div class="toolbar-left">
+        <span class="selected-count" id="selectedCount">0 selected</span>
+        <button class="btn-clear" id="clearBtn">Clear</button>
+    </div>
+    <div class="toolbar-right">
+        <button class="btn btn-warning btn-toolbar-action" id="editBtn" disabled>Edit</button>
+        <button class="btn btn-success btn-toolbar-action" id="completeBtn" disabled>Complete</button>
+    </div>
+</div>
+
+<!-- Modal for completing loan -->
+<div class="modal fade" id="completeLoanModal" tabindex="-1" aria-labelledby="completeLoanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="completeLoanModalLabel">Complete Loan Return</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="completeLoanForm" enctype="multipart/form-data">
+                    <div class="mb-3" id="existingNotesSection" style="display:none;">
+                        <label class="form-label"><strong>Existing Notes</strong></label>
+                        <div class="border rounded p-2 bg-light" style="max-height: 150px; overflow-y: auto;">
+                            <pre id="existingNotesDisplay" class="mb-0" style="white-space: pre-wrap; font-family: inherit;"></pre>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="additionalNotes" class="form-label"><strong>Add Return Notes</strong> (Optional)</label>
+                        <p class="small text-muted">Describe the condition of the item, any damage, or circumstances of the return. This will be appended to existing notes.</p>
+                        <textarea class="form-control" id="additionalNotes" name="additional_notes" rows="3" placeholder="E.g., Item returned in good condition, slight scratch on side..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="returnPhoto" class="form-label"><strong>Return Photo</strong> (Optional)</label>
+                        <p class="small text-muted">Take a photo to document the item's condition at return (especially if damaged). This is completely optional.</p>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="updateItemPhoto" name="update_item_photo" checked>
+                            <label class="form-check-label" for="updateItemPhoto">Make this the new photo for the item</label>
+                        </div>
+                        <label for="returnPhoto" class="btn btn-secondary">📷 Add Photo</label>
+                        <input type="file" class="form-control d-none custom-file-upload" id="returnPhoto" name="return_photo" accept="image/*" capture="environment">
+                        <span id="returnPhoto_filename" class="ms-2 text-muted small"></span>
+                        <button type="button" class="btn btn-sm btn-secondary mt-2" onclick="clearPhoto()" id="clearPhotoBtn" style="display:none;">Remove Photo</button>
+                    </div>
+                    <div id="photoPreviewContainer" style="display:none;" class="mb-3">
+                        <img id="photoPreview" src="" class="img-fluid rounded" style="max-height: 300px;">
+                    </div>
+                    <hr>
+                    <p class="mb-3"><strong>How was this loan completed?</strong></p>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success btn-lg" onclick="submitCompleteLoan(2)">✓ Returned - Normally</button>
+                        <button type="button" class="btn btn-warning btn-lg" onclick="submitCompleteLoan(5)">⚠️ Returned - Damaged</button>
+                        <button type="button" class="btn btn-danger btn-lg" onclick="submitCompleteLoan(4)">❌ Lost/Not Returned</button>
+                        <button type="button" class="btn btn-secondary btn-lg" onclick="submitCompleteLoan(3)">✗ Cancelled</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var selected = new Set();
+    var toolbar     = document.getElementById("actionToolbar");
+    var countEl     = document.getElementById("selectedCount");
+    var editBtn     = document.getElementById("editBtn");
+    var completeBtn = document.getElementById("completeBtn");
+    var clearBtn    = document.getElementById("clearBtn");
+    var completeLoanModal = new bootstrap.Modal(document.getElementById("completeLoanModal"));
+
+    window.clearMessageFromUrl = function() {
+        var url = new URL(window.location);
+        url.searchParams.delete("message");
+        window.history.replaceState({}, "", url);
+    };
+
+    document.getElementById("completeLoanModal").addEventListener("hidden.bs.modal", function() {
+        selected.clear();
+        document.querySelectorAll(".selectable-item.selected").forEach(function(el) { el.classList.remove("selected"); });
+        updateToolbar();
+    });
+    var currentLoanId = null;
+
+    function updateToolbar() {
+        var count = selected.size;
+        countEl.textContent = count + " selected";
+                editBtn.disabled     = (count !== 1);
+        completeBtn.disabled = (count !== 1);
+    }
+
+    document.querySelectorAll(".selectable-item").forEach(function(item) {
+        item.addEventListener("click", function() {
+            var id = this.dataset.id;
+
+            if (selected.has(id)) {
+                selected.clear();
+                this.classList.remove("selected");
+            } else {
+                selected.clear();
+                document.querySelectorAll(".selectable-item.selected").forEach(function(el) {
+                    el.classList.remove("selected");
+                });
+                selected.add(id);
+                this.classList.add("selected");
+            }
+            updateToolbar();
+        });
+    });
+
+    editBtn.addEventListener("click", function() {
+        if (selected.size !== 1) return;
+        window.location.href = "{{ config.URL_PREFIX }}/loan/" + selected.values().next().value + "/edit";
+    });
+
+    completeBtn.addEventListener("click", function() {
+        if (selected.size !== 1) return;
+        currentLoanId = selected.values().next().value;
+        fetch("{{ config.URL_PREFIX }}/loan/" + currentLoanId + "/details")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.notes) {
+                    document.getElementById("existingNotesDisplay").textContent = data.notes;
+                    document.getElementById("existingNotesSection").style.display = "block";
+                } else {
+                    document.getElementById("existingNotesSection").style.display = "none";
+                }
+                document.getElementById("additionalNotes").value = "";
+                clearPhoto();
+                completeLoanModal.show();
+            })
+            .catch(function(error) {
+                console.error("Error:", error);
+                document.getElementById("existingNotesSection").style.display = "none";
+                completeLoanModal.show();
+            });
+    });
+
+    clearBtn.addEventListener("click", function() {
+        selected.clear();
+        document.querySelectorAll(".selectable-item.selected").forEach(function(el) { el.classList.remove("selected"); });
+        updateToolbar();
+    });
+    // Search functionality
+    document.getElementById("searchBox").addEventListener("input", function(e) {
+        var s = e.target.value.toLowerCase();
+        document.querySelectorAll(".selectable-item").forEach(function(item) {
+            var matchesItemName = item.dataset.itemNameLower.includes(s);
+            var matchesContact = item.dataset.contactNameLower.includes(s);
+            var matchesLoanDate = item.dataset.loanDate.includes(s);
+            var matchesReturnDate = item.dataset.returnDate.includes(s);
+            var matchesNotes = item.dataset.notes.includes(s);
+            
+            item.style.display = (matchesItemName || matchesContact || matchesLoanDate || matchesReturnDate || matchesNotes) ? "" : "none";
+        });
+    });
+
+
+    document.addEventListener("DOMContentLoaded", function() {
+        document.getElementById("returnPhoto").addEventListener("change", function(e) {
+            var file = e.target.files[0];
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function(ev) {
+                    document.getElementById("photoPreview").src = ev.target.result;
+                    document.getElementById("photoPreviewContainer").style.display = "block";
+                    document.getElementById("clearPhotoBtn").style.display = "inline-block";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        document.querySelectorAll(".custom-file-upload").forEach(function(input) {
+            input.addEventListener("change", function() {
+                var span = document.getElementById(this.id + "_filename");
+                if (span && this.files && this.files.length > 0) { span.textContent = this.files[0].name; }
+                else if (span) { span.textContent = ""; }
+            });
+        });
+
+        if (document.getElementById("statusMessage")) {
+            setTimeout(function() {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                clearMessageFromUrl();
+            }, 100);
+        }
+    });
+
+    window.clearPhoto = function() {
+        document.getElementById("returnPhoto").value = "";
+        document.getElementById("photoPreviewContainer").style.display = "none";
+        document.getElementById("clearPhotoBtn").style.display = "none";
+        var span = document.getElementById("returnPhoto_filename");
+        if (span) span.textContent = "";
+    };
+
+    window.submitCompleteLoan = function(disposition) {
+        var formData = new FormData(document.getElementById("completeLoanForm"));
+        formData.append("disposition", disposition);
+        completeLoanModal.hide();
+        fetch("{{ config.URL_PREFIX }}/loan/" + currentLoanId + "/complete", {
+            method: "POST",
+            body: formData
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var msg = data.message || "Loan updated";
+                window.location.href = "{{ config.URL_PREFIX }}/where?message=" + encodeURIComponent(msg);
+            }
+            else { alert("Error: " + (data.error || "Failed to complete loan")); }
+        })
+        .catch(function(error) { alert("Error: Failed to complete loan"); });
+    };
+})();
+</script>
+{% endblock %}

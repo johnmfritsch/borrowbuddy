@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}BorrowBuddy - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-10">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>⚙️ Admin Panel</h1>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                ← Back to Home
+            </a>
+        </div>
+
+        <div class="alert alert-info mb-4">
+            <strong>Welcome, Administrator!</strong>
+            <p class="mb-0">You are logged in as: <strong>{{ current_user.email }}</strong></p>
+        </div>
+
+        <!-- Placeholder sections for future admin functionality -->
+        <div class="row">
+            <!-- User Management -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">👥 User Management</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">View and manage user accounts, permissions, and activity.</p>
+                        <button class="btn btn-outline-primary" disabled>
+                            Coming Soon
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Statistics -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">📊 System Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">View total loans, most borrowed items, and active users.</p>
+                        <button class="btn btn-outline-success" disabled>
+                            Coming Soon
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Maintenance -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">🔧 Database Maintenance</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Backup, restore, and cleanup orphaned records.</p>
+                        <button class="btn btn-outline-warning" disabled>
+                            Coming Soon
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audit Logs - FULL IMPLEMENTATION -->
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">📝 Audit Logs</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Filters -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small">User</label>
+                                <select id="filter_user" class="form-select form-select-sm">
+                                    <option value="">All Users</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Action</label>
+                                <select id="filter_action" class="form-select form-select-sm">
+                                    <option value="">All Actions</option>
+                                    <option value="login">Login</option>
+                                    <option value="logout">Logout</option>
+                                    <option value="create">Create</option>
+                                    <option value="update">Update</option>
+                                    <option value="delete">Delete</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Entity Type</label>
+                                <select id="filter_entity" class="form-select form-select-sm">
+                                    <option value="">All Types</option>
+                                    <option value="loan">Loans</option>
+                                    <option value="item">Items</option>
+                                    <option value="item_photo">Photos</option>
+                                    <option value="contact">Contacts</option>
+                                    <option value="user">User Auth</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">From Date</label>
+                                <input type="date" id="filter_date_from" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">To Date</label>
+                                <input type="date" id="filter_date_to" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end">
+                                <button class="btn btn-sm btn-primary w-100" onclick="loadAuditLogs()">
+                                    Filter
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <span id="log_count" class="text-muted small">Loading...</span>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-danger" onclick="clearOldLogs()">
+                                    🗑️ Clear Old Logs
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Logs Table -->
+                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                            <table class="table table-sm table-striped table-hover">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th style="width: 140px;">Timestamp</th>
+                                        <th style="width: 160px;">User</th>
+                                        <th style="width: 70px;">Action</th>
+                                        <th style="width: 80px;">Type</th>
+                                        <th style="width: 200px;">Entity</th>
+                                        <th>Details</th>
+                                        <th style="width: 110px;">IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit_logs_table">
+                                    <tr>
+                                        <td colspan="7" class="text-center">
+                                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                                            Loading...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+<script>
+let auditStats = null;
+
+// Load filter options
+async function loadAuditStats() {
+    try {
+        const response = await fetch('{{ url_for("api_audit_log_stats") }}');
+        auditStats = await response.json();
+
+        // Populate user filter
+        const userSelect = document.getElementById('filter_user');
+        auditStats.users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.user_id;
+            option.textContent = user.user_email;
+            userSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading audit stats:', error);
+    }
+}
+
+// Load audit logs with filters
+async function loadAuditLogs() {
+    const params = new URLSearchParams();
+
+    const userId = document.getElementById('filter_user').value;
+    const action = document.getElementById('filter_action').value;
+    const entityType = document.getElementById('filter_entity').value;
+    const dateFrom = document.getElementById('filter_date_from').value;
+    const dateTo = document.getElementById('filter_date_to').value;
+
+    if (userId) params.append('user_id', userId);
+    if (action) params.append('action', action);
+    if (entityType) params.append('entity_type', entityType);
+    if (dateFrom) params.append('date_from', dateFrom + 'T00:00:00');
+    if (dateTo) params.append('date_to', dateTo + 'T23:59:59');
+
+    try {
+        const response = await fetch(`{{ url_for("api_audit_log") }}?${params}`);
+        const logs = await response.json();
+
+        // Update count
+        document.getElementById('log_count').textContent = `Showing ${logs.length} log entries`;
+
+        // Render table
+        const tbody = document.getElementById('audit_logs_table');
+        tbody.innerHTML = '';
+
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No logs found</td></tr>';
+            return;
+        }
+
+        logs.forEach(log => {
+            const row = document.createElement('tr');
+
+            // Format timestamp
+            const date = new Date(log.timestamp);
+            const timestamp = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+
+            // Action badge
+            const actionClass = {
+                'login': 'badge bg-success',
+                'logout': 'badge bg-secondary',
+                'create': 'badge bg-primary',
+                'update': 'badge bg-warning text-dark',
+                'delete': 'badge bg-danger'
+            }[log.action] || 'badge bg-info';
+
+            // Details (parse JSON if present)
+            let details = log.details || '';
+            if (details && details.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(details);
+                    details = Object.entries(parsed)
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join(', ');
+                } catch (e) {
+                    // Keep as is if parsing fails
+                }
+            }
+
+            row.innerHTML = `
+                <td class="small">${timestamp}</td>
+                <td class="small">${log.user_email}</td>
+                <td><span class="${actionClass}">${log.action}</span></td>
+                <td class="small">${log.entity_type}</td>
+                <td class="small">${log.entity_name || '-'}</td>
+                <td class="small text-muted">${details}</td>
+                <td class="small text-muted">${log.ip_address || '-'}</td>
+            `;
+
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error loading audit logs:', error);
+        document.getElementById('audit_logs_table').innerHTML =
+            '<tr><td colspan="7" class="text-center text-danger">Error loading logs</td></tr>';
+    }
+}
+
+// Clear old logs
+function clearOldLogs() {
+    const daysToKeep = prompt('Keep logs from the last X days (enter number):', '30');
+    if (!daysToKeep) return;
+
+    const dateBefore = new Date();
+    dateBefore.setDate(dateBefore.getDate() - parseInt(daysToKeep));
+
+    if (!confirm(`Delete all logs before ${dateBefore.toLocaleDateString()}?`)) {
+        return;
+    }
+
+    fetch('{{ url_for("api_audit_log_clear") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date_before: dateBefore.toISOString() })
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(`Deleted ${data.deleted_count} log entries`);
+        loadAuditLogs();
+    })
+    .catch(error => {
+        console.error('Error clearing logs:', error);
+        alert('Error clearing logs');
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadAuditStats();
+    loadAuditLogs();
+});
+</script>
+                        <!-- System Settings -->
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">⚙️ System Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Configure app-wide settings and preferences.</p>
+                        <button class="btn btn-outline-secondary" disabled>
+                            Coming Soon
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

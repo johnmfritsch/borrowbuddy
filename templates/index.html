@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}BorrowBuddy - Home{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        {% if request.args.get("message") %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert" id="successMessage">
+            {{ request.args.get("message") }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" onclick="clearMessageFromUrl()"></button>
+        </div>
+        {% endif %}
+
+        <!-- First row: Loan and Borrow -->
+        <div class="row mb-3">
+            <div class="col-6">
+                <a href="{{ url_for("loan") }}" class="btn btn-primary btn-lg w-100">
+                    📤 Loan Something
+                </a>
+            </div>
+            <div class="col-6">
+                <button class="btn btn-secondary btn-lg w-100" disabled>
+                    📥 Borrow Something
+                    <small class="d-block">Coming Soon</small>
+                </button>
+            </div>
+        </div>
+
+        <!-- Second row: Where's My Stuff and Return -->
+        <div class="row mb-3">
+            <div class="col-6">
+                <a href="{{ url_for("where") }}" class="btn btn-info btn-lg w-100">
+                    📍 Where's My Stuff?
+                </a>
+            </div>
+            <div class="col-6">
+                <button class="btn btn-success btn-lg w-100" disabled>
+                    ✅ Return Something
+                    <small class="d-block">Coming Soon</small>
+                </button>
+            </div>
+        </div>
+
+        <!-- Third row: Management Pages (secondary controls) -->
+        <div class="row mb-3" style="margin-top: 3rem;">
+            <div class="col-6">
+                <a href="{{ url_for("contacts") }}" class="btn btn-outline-secondary btn-sm w-100">
+                    📋 Manage Contacts
+                </a>
+            </div>
+            <div class="col-6">
+                <a href="{{ url_for("items") }}" class="btn btn-outline-secondary btn-sm w-100">
+                    📦 Manage Items
+                </a>
+            </div>
+        </div>
+
+        <!-- Fourth row: Admin (only for admins) -->
+        {% if current_user and current_user.is_admin %}
+        <div class="row mt-3">
+            <div class="col-12">
+                <a href="{{ url_for('admin') }}" class="btn btn-warning btn-lg w-100">
+                    ⚙️ Admin
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function clearMessageFromUrl() {
+        // Remove the message parameter from the URL
+        const url = new URL(window.location);
+        url.searchParams.delete("message");
+        window.history.replaceState({}, "", url);
+    }
+
+    // Auto-clear message from URL when page loads (so refresh doesn't show it again)
+    document.addEventListener("DOMContentLoaded", function() {
+        if (document.getElementById("successMessage")) {
+            // Wait a moment for the alert to be visible, then clear URL
+            setTimeout(clearMessageFromUrl, 100);
+        }
+    });
+</script>
+{% endblock %}

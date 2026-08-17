@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BorrowBuddy{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ config.URL_PREFIX }}">BorrowBuddy</a>
+            {% if session.get('user_id') %}
+            <div class="user-info">
+                <button type="button" class="btn btn-hamburger me-3" id="hamburgerBtn" aria-label="Open menu">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+                <a href="{{ config.URL_PREFIX }}" class="home-icon" title="Home">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container">
+        {% if session.get('user_id') and request.path not in ['/', '/login', '/register'] %}
+        <div class="d-flex align-items-center page-title-row">
+            {% if request.path == '/contacts/add' %}
+            <a href="{{ url_for('contacts') }}" class="back-arrow" aria-label="Go back to contacts">
+            {% elif '/contacts/' in request.path and '/edit' in request.path %}
+            <a href="{{ url_for('contacts') }}" class="back-arrow" aria-label="Go back to contacts">
+            {% elif request.path == '/items/add' %}
+            <a href="{{ url_for('items') }}" class="back-arrow" aria-label="Go back to items">
+            {% elif '/items/' in request.path and '/edit' in request.path %}
+            <a href="{{ url_for('items') }}" class="back-arrow" aria-label="Go back to items">
+            {% else %}
+            <a href="{{ url_for('index') }}" class="back-arrow" aria-label="Go to home">
+            {% endif %}
+                <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+                    <!-- 3D arrow: shadow/depth layer -->
+                    <polygon points="22,8 4,20 22,32 22,26 34,26 34,14 22,14" fill="#1a5276" transform="translate(1,2)"/>
+                    <!-- 3D arrow: main face -->
+                    <polygon points="22,8 4,20 22,32 22,26 34,26 34,14 22,14" fill="#2e86c1"/>
+                    <!-- 3D arrow: highlight on top edge for bevel -->
+                    <polygon points="22,8 4,20 10,20 22,11" fill="#5dade2"/>
+                </svg>
+            </a>
+            {% block page_title %}{% endblock %}
+        </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    document.querySelectorAll(".alert-success").forEach(function(el) {
+        el.style.transition = "opacity 0.6s ease";
+        el.style.opacity = "1";
+        setTimeout(function() {
+            el.style.opacity = "0";
+            setTimeout(function() { el.remove(); }, 600);
+        }, 2000);
+    });
+    </script>
+    <script>
+    // Mobile/Desktop detection
+    window.isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        || (navigator.maxTouchPoints > 1 && /Mobi|Tablet/i.test(navigator.userAgent));
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Remove autofocus on mobile to prevent keyboard popup
+        if (window.isMobile) {
+            document.querySelectorAll('[autofocus]').forEach(function(el) {
+                el.removeAttribute('autofocus');
+                el.blur();
+            });
+        }
+
+        // On desktop, rename "Choose from Gallery" to "Upload Photo"
+        if (!window.isMobile) {
+            document.querySelectorAll('.gallery-btn-label').forEach(function(el) {
+                el.textContent = 'Upload Photo';
+            });
+        }
+    });
+    </script>
+    {% block scripts %}{% endblock %}
+
+    {% if session.get('user_id') %}
+    {% set email = session.get('user_email', '') %}
+    {% set local_part = email.split('@')[0] if email else '' %}
+    {% if '.' in local_part %}
+        {% set initials = (local_part[0] ~ local_part.split('.')[1][0]).upper() %}
+    {% elif local_part|length >= 2 %}
+        {% set initials = local_part[0:2].upper() %}
+    {% else %}
+        {% set initials = local_part.upper() if local_part else '??' %}
+    {% endif %}
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <nav class="drawer-menu" id="drawerMenu" aria-hidden="true">
+        <button type="button" class="btn btn-close-drawer" id="drawerCloseBtn" aria-label="Close menu">
+            <span class="close-line"></span>
+            <span class="close-line"></span>
+        </button>
+        <div class="drawer-avatar-header">
+            <div class="drawer-avatar">{{ initials }}</div>
+            <div class="drawer-avatar-email">{{ email }}</div>
+        </div>
+        <ul class="drawer-nav-list">
+            <li><a href="{{ url_for('my_profile') }}">My Profile</a></li>
+            <li><a href="{{ url_for('settings') }}">Settings</a></li>
+            <li><a href="{{ url_for('invite_friends') }}">Invite Friends</a></li>
+            <li><a href="{{ url_for('borrowbuddy_features') }}">BorrowBuddy Features</a></li>
+        </ul>
+        <hr class="drawer-separator">
+        <ul class="drawer-nav-list">
+            <li><a href="{{ url_for('logout') }}" class="logout-link">Logout</a></li>
+        </ul>
+    </nav>
+    <script>
+    (function() {
+        var hamburgerBtn = document.getElementById('hamburgerBtn');
+        var drawerMenu   = document.getElementById('drawerMenu');
+        var overlay      = document.getElementById('drawerOverlay');
+        var closeBtn     = document.getElementById('drawerCloseBtn');
+
+        function openDrawer() {
+            drawerMenu.classList.add('drawer-menu--open');
+            overlay.classList.add('drawer-overlay--visible');
+            drawerMenu.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeDrawer() {
+            drawerMenu.classList.remove('drawer-menu--open');
+            overlay.classList.remove('drawer-overlay--visible');
+            drawerMenu.setAttribute('aria-hidden', 'true');
+        }
+
+        hamburgerBtn.addEventListener('click', openDrawer);
+        closeBtn.addEventListener('click', closeDrawer);
+        overlay.addEventListener('click', closeDrawer);
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeDrawer();
+        });
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Contacts{% endblock %}
+
+{% block page_title %}<h2 class="fw-bold" style="font-size: 1.6rem; color: #1a3a5c; margin: 0; flex: 1; text-align: center;">Manage Contacts</h2>{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-4 has-action-toolbar">
+    <div class="col-md-10">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <a href="{{ url_for('add_contact') }}" class="btn btn-primary">
+                ➕ Add Contact
+            </a>
+        </div>
+
+        {% if request.args.get('message') %}
+        <div class="alert alert-success alert-dismissible fade show" data-bs-autohide="true" data-bs-delay="3000">
+            {{ request.args.get('message') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        {% if request.args.get('error') %}
+        <div class="alert alert-danger alert-dismissible fade show">
+            {{ request.args.get('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+            <input type="text" class="form-control" id="searchBox" autofocus
+                   placeholder="Search contacts by name, email, or phone...">
+        </div>
+
+        {% if contacts|length == 0 %}
+        <div class="alert alert-info">
+            No contacts yet. Add your first contact above!
+        </div>
+        {% else %}
+        <div class="list-group" id="contactsList">
+            {% for contact in contacts %}
+            <div class="list-group-item contact-item selectable-item"
+                 data-id="{{ contact.id }}"
+                 data-name="{{ contact.name }}"
+                 data-name-lower="{{ contact.name|lower }}"
+                 data-email="{{ contact.email|lower if contact.email else '' }}"
+                 data-phone="{{ contact.phone if contact.phone else '' }}"
+                 data-active-loans="{{ contact.active_loans|default(0) }}"
+                 data-active-borrows="{{ contact.active_borrows|default(0) }}">
+                <div class="d-flex align-items-center">
+                    <div class="contact-avatar me-3">
+                        {{ contact.name[:2]|upper }}
+                    </div>
+                    <div class="flex-grow-1">
+                        <h5 class="mb-1">{{ contact.name }}</h5>
+                        <div class="text-muted small">
+                            {% if contact.email %}
+                            <div>📧 {{ contact.email }}</div>
+                            {% endif %}
+                            {% if contact.phone %}
+                            <div>📱 {{ contact.phone }}</div>
+                            {% endif %}
+                            <div class="mt-1">
+                                📤 Loaned {{ contact.loan_count }} times
+                                {% if contact.last_loaned %}
+                                • Last: {{ contact.last_loaned }}
+                                {% endif %}
+                            </div>
+                            <div class="mt-1">
+                                {% if contact.active_loans > 0 %}
+                                <span class="badge bg-warning text-dark">{{ contact.active_loans }} Active Loan{% if contact.active_loans > 1 %}s{% endif %}</span>
+                                {% endif %}
+                                {% if contact.active_borrows > 0 %}
+                                <span class="badge bg-info text-dark">{{ contact.active_borrows }} Active Borrow{% if contact.active_borrows > 1 %}s{% endif %}</span>
+                                {% endif %}
+                                {% if contact.active_loans == 0 and contact.active_borrows == 0 %}
+                                <span class="badge bg-success">No Active Transactions</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+        </div>
+    </div>
+</div>
+
+<!-- Action Toolbar -->
+<div class="action-toolbar" id="actionToolbar">
+    <div class="toolbar-left">
+        <span class="selected-count" id="selectedCount">0 selected</span>
+        <button class="btn-clear" id="clearBtn">Clear</button>
+    </div>
+    <div class="toolbar-right">
+        <button class="btn btn-warning btn-toolbar-action" id="editBtn" disabled>Edit</button>
+        <button class="btn btn-danger btn-toolbar-action" id="deleteBtn" disabled>Delete</button>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalTitle">Delete Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="deleteModalBody">Are you sure you want to delete the selected contact(s)?</p>
+                <div id="activeTransactionWarning" style="display: none;" class="alert alert-warning">
+                    <strong>⚠️ Warning:</strong> One or more selected contacts have active loans or borrows. Deleting them will hide them but transaction history is preserved.
+                </div>
+                <p class="text-muted">Contacts will be marked as inactive and hidden from view. Historical transaction data will be preserved.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var selected = new Set();
+    var toolbar   = document.getElementById("actionToolbar");
+    var countEl   = document.getElementById("selectedCount");
+    var editBtn   = document.getElementById("editBtn");
+    var deleteBtn = document.getElementById("deleteBtn");
+    var clearBtn  = document.getElementById("clearBtn");
+    var deleteModal = new bootstrap.Modal(document.getElementById("deleteModal"));
+
+    document.getElementById("deleteModal").addEventListener("hidden.bs.modal", function() {
+        selected.clear();
+        document.querySelectorAll(".selectable-item.selected").forEach(function(el) { el.classList.remove("selected"); });
+        updateToolbar();
+    });
+
+    function updateToolbar() {
+        var count = selected.size;
+        countEl.textContent = count + " selected";
+                editBtn.disabled   = (count !== 1);
+        deleteBtn.disabled = (count === 0);
+    }
+
+    document.querySelectorAll(".selectable-item").forEach(function(item) {
+        item.addEventListener("click", function() {
+            var id = this.dataset.id;
+            if (selected.has(id)) { selected.delete(id); this.classList.remove("selected"); }
+            else { selected.add(id); this.classList.add("selected"); }
+            updateToolbar();
+        });
+    });
+
+    editBtn.addEventListener("click", function() {
+        if (selected.size !== 1) return;
+        window.location.href = "{{ config.URL_PREFIX }}/contacts/" + selected.values().next().value + "/edit";
+    });
+
+    deleteBtn.addEventListener("click", function() {
+        var count = selected.size;
+        document.getElementById("deleteModalTitle").textContent = "Delete Contact" + (count > 1 ? "s" : "");
+        if (count === 1) {
+            document.getElementById("deleteModalBody").textContent = "Are you sure you want to delete " + document.querySelector(".selectable-item.selected").dataset.name + "?";
+        } else {
+            document.getElementById("deleteModalBody").textContent = "Are you sure you want to delete " + count + " contacts?";
+        }
+        // Check for active transactions (loans or borrows)
+        var hasActiveTransactions = false;
+        selected.forEach(function(id) {
+            var el = document.querySelector(".selectable-item[data-id=\"" + id + "\"]");
+            if (el && (parseInt(el.dataset.activeLoans) > 0 || parseInt(el.dataset.activeBorrows) > 0)) {
+                hasActiveTransactions = true;
+            }
+        });
+        document.getElementById("activeTransactionWarning").style.display = hasActiveTransactions ? "block" : "none";
+        document.getElementById("confirmDeleteBtn").textContent = hasActiveTransactions ? "Delete Anyway" : "Delete";
+        deleteModal.show();
+    });
+
+    document.getElementById("confirmDeleteBtn").addEventListener("click", function() {
+        var ids = Array.from(selected);
+        deleteModal.hide();
+        var chain = Promise.resolve();
+        ids.forEach(function(id) {
+            chain = chain.then(function() {
+                return fetch("{{ config.URL_PREFIX }}/contacts/" + id + "/delete", {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+            });
+        });
+        chain.then(function() { window.location.reload(); })
+             .catch(function(err) { alert("Delete error: " + err); });
+    });
+
+    clearBtn.addEventListener("click", function() {
+        selected.clear();
+        document.querySelectorAll(".selectable-item.selected").forEach(function(el) { el.classList.remove("selected"); });
+        updateToolbar();
+    });
+
+    document.getElementById("searchBox").addEventListener("input", function(e) {
+        var s = e.target.value.toLowerCase();
+        document.querySelectorAll(".selectable-item").forEach(function(item) {
+            item.style.display = (item.dataset.nameLower.includes(s) || item.dataset.email.includes(s) || item.dataset.phone.includes(s)) ? "" : "none";
+        });
+    });
+
+    // Remove query parameters from URL after displaying message (prevents refresh loop)
+    if (window.location.search.includes('message') || window.location.search.includes('error')) {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
+
+    // Auto-focus search box on page load
+    if (!window.isMobile) document.getElementById('searchBox').focus();
+})();
+</script>
+
+<style>
+.contact-avatar { width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem; }
+.contact-item { transition: all 0.2s; }
+.contact-item:hover { background-color:#f8f9fa; }
+.contact-item.selected:hover { background-color:#dce8fc; }
+</style>
+{% endblock %}

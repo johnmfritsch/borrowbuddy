@@ -1,0 +1,70 @@
+{# Reusable duplicate detection modals for contacts and items #}
+
+{% macro duplicate_modal(type='contact') %}
+<!-- Exact Match Duplicate Modal -->
+<div class="modal fade" id="duplicateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dupModalTitle">{% if type == 'contact' %}Contact{% else %}Item{% endif %} Already Exists</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="dupModalMessage">A {% if type == 'contact' %}contact{% else %}item{% endif %} named <strong id="duplicate_name"></strong> already exists:</p>
+
+                {% if type == 'item' %}
+                <!-- Photo if available (items only) -->
+                <div id="duplicate_photo" class="mb-3" style="display: none;">
+                    <img id="duplicate_photo_img" src="" alt="Item photo" class="img-thumbnail" style="max-width: 200px;">
+                </div>
+                {% endif %}
+
+                <ul id="duplicate_info" class="mb-3">
+                    <!-- Populated dynamically -->
+                </ul>
+
+                <div id="merge_suggestion" style="display: none;">
+                    <div class="alert alert-success">
+                        <strong>Good news!</strong> You have new information that can be added:
+                        <ul id="new_info_list" class="mb-0 mt-2"></ul>
+                    </div>
+                </div>
+                <p>What would you like to do?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="readd_btn" class="btn btn-primary" style="display: none;">Re-add This {% if type == 'contact' %}Contact{% else %}Item{% endif %}</button>
+                <button type="button" class="btn btn-warning" data-bs-dismiss="modal">Add as Duplicate</button>
+                <button type="button" id="merge_btn" class="btn btn-success" style="display: none;">
+                    Merge New Info
+                </button>
+                <a href="#" id="edit_existing_btn" class="btn btn-primary">Edit Existing</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro fuzzy_modal(type='contact') %}
+<!-- Fuzzy Match Modal -->
+<div class="modal fade" id="fuzzyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Similar {% if type == 'contact' %}Contacts{% else %}Items{% endif %} Found</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>We found {% if type == 'contact' %}contacts{% else %}items{% endif %} with similar names. Did you mean one of these?</p>
+                <div id="fuzzy_matches" class="list-group mb-3">
+                    <!-- Populated dynamically -->
+                </div>
+                <p class="text-muted">Or continue creating a new {% if type == 'contact' %}contact{% else %}item{% endif %} with the name you entered.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Create New {% if type == 'contact' %}Contact{% else %}Item{% endif %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

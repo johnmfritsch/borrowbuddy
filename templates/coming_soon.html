@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{{ feature_name }} - BorrowBuddy{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8 col-lg-6 text-center">
+        <h1 class="fw-bold text-white mb-3" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+            {{ feature_name }}
+        </h1>
+        <hr class="border-white border-opacity-25 mx-auto" style="width: 60px;">
+        <div class="card border-0 shadow-lg mt-4"
+             style="background: rgba(255,255,255,0.12); backdrop-filter: blur(10px); border-radius: 16px; color: #ffffff;">
+            <div class="card-body p-5">
+                <p class="fs-5 mb-0">This feature is coming soon. Stay tuned!</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
