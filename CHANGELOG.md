@@ -1,7 +1,14 @@
 
 # Purpose: "What changed for users" (concise, feature-focused)
 
-## [2026-02-18] - Production Server Restart Reliability Fix
+## [2026-10-21] - Gunicorn Server, Health Check and Safer Deploys
+
+### Changed
+- **Runs on Gunicorn instead of Flask's built-in server**: one shared launcher (`scripts/start_borrowbuddy.py {dev|prod}`) starts both environments, waits for the HTTPS certificate, and writes a PID file. Stop and restart scripts now stop the server by that PID and confirm it is serving before reporting success.
+- **Deploy is safer**: `deploy_to_prod.sh` checks the Python runtime first, compares the dev migrations (not prod's) against the prod database, backs up uncompressed, and treats a server that does not come back healthy as a failed deploy.
+
+### Added
+- **`/health` endpoint**: a no-login check used by the restart scripts and the shared NAS watchdog.
 
 ### Fixed
 - **Production server failed to start after deploy**: The inline `python3 -c` command used by the restart script was unreliable under memory pressure (BusyBox nohup + large inline command). Replaced with a proper `start_prod.py` launcher script matching the existing `start_dev.py` pattern.

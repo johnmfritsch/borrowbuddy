@@ -60,6 +60,11 @@ class PrefixMiddleware:
 # Wrap the app with the prefix middleware
 app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=config.URL_PREFIX)
 
+# /health: no auth, no DB, no template. Polled by the shared NAS app watchdog
+# (/volume1/util/system/app_watchdog), the same endpoint every other app exposes.
+from health import health_bp
+app.register_blueprint(health_bp)
+
 
 # Middleware to set cache headers for improved performance
 @app.after_request
